@@ -17,6 +17,8 @@
 #include "Components/CFeetComponent.h"
 #include "Components/CStatusComponent.h"
 #include "Components/CEquipComponent.h"
+#include "Components/CDialogueComponent.h"
+
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/WidgetComponent.h"
@@ -52,6 +54,7 @@ ACPlayer::ACPlayer()
 	CHelpers::CreateActorComponent<UCInteractComponent>(this, &Interaction, "Interact");
 	CHelpers::CreateActorComponent<UCInventoryComponent>(this, &Inventory, "Inventory");
 	CHelpers::CreateActorComponent<UCEquipComponent>(this, &Equipment, "Equipment");
+	CHelpers::CreateActorComponent<UCDialogueComponent>(this, &Dialogue, "Dialogue");
 
 
 
@@ -103,7 +106,8 @@ void ACPlayer::BeginPlay()
 
 	Super::BeginPlay();
 	//Action->SetUnarmedMode();
-	GetCharacterMovement()->MaxWalkSpeed = Status->GetWalkSpeed();
+	Status->SetSpeed(ECharacterSpeed::Run);
+	Inventory->SetCanChange(true);
 	//State에서 선언한 OnstatetypeChanged가 broadcast로 호출되면 
 	//묶여있는 함수가 같이 연계된다. --  delegate는 함수포인터를 사용한것과 비슷하다.
 	//함수포인터는 인자로 받아야하지만 delegate는 필요가없다.
@@ -111,15 +115,19 @@ void ACPlayer::BeginPlay()
 	Action->OnActionTypeChanged.AddDynamic(this, &ACPlayer::OnActionTypeChanged);
 	Action->EquipSecond.AddDynamic(this, &ACPlayer::EquipSecond);
 	Action->UnequipSecond.AddDynamic(this, &ACPlayer::UnequipSecond);
-	Action->EndToolAction.AddDynamic(this, &ACPlayer::EndToolAction);
+	Action->EndConsumableAction.AddDynamic(Inventory, &UCInventoryComponent::EndConsumableAction);
+
 
 
 	State->OnStateTypeChanged.AddDynamic(this, &ACPlayer::OnStateTypeChanged);
-	Inventory->SetNewMainWeapon.AddDynamic(this, &ACPlayer::SetNewMainWeapon);
-	Inventory->SetNewArmor.AddDynamic(this, &ACPlayer::SetNewArmor);
-	Inventory->SetNewTool.AddDynamic(this, &ACPlayer::SetNewTool);
-	
-	Equipment->OnShield.AddDynamic(this, &ACPlayer::SetOnShield);
+	Inventory->SetNewMainWeapon.AddDynamic(Action,&UCActionComponent::SetNewMainWeapon);
+	Inventory->SetNewArmor.AddDynamic(Equipment,&UCEquipComponent::SetNewArmor);
+	Inventory->SetNewTool.AddDynamic(Action,&UCActionComponent::SetNewTool);
+	Inventory->SetNewConsumable.AddDynamic(Action,&UCActionComponent::SetNewConsumable);
+
+	Equipment->OnShield.AddDynamic(Action, &UCActionComponent::OnAdditionalAttachment);
+	Equipment->OffShield.AddDynamic(Action, &UCActionComponent::OffAdditionalAttachment);
+
 	Equipment->SetNewStatus.AddDynamic(this, &ACPlayer::SetNewStatus);
 
 
@@ -131,10 +139,7 @@ void ACPlayer::BeginPlay()
 	Action->GetActionList()->GetData(3).OnUserWidget_ActionItem_Clicked.AddDynamic(this, &ACPlayer::OnWarp);
 	Action->GetActionList()->GetData(4).OnUserWidget_ActionItem_Clicked.AddDynamic(this, &ACPlayer::OnFireStorm);
 	Action->GetActionList()->GetData(5).OnUserWidget_ActionItem_Clicked.AddDynamic(this, &ACPlayer::OnThrow);
-	
-	//OnUnarmed();
-	//Cast<UCUserWidget_Health>(HealthWidget->GetUserWidgetObject())->Update(Status->GetHealth(), Status->GetMaxHealth());
-	
+
 	UpdateWidget();
 	StatusWidget->AddToViewport();
 	StatusWidget->SetVisibility(ESlateVisibility::Hidden);
@@ -163,6 +168,10 @@ void ACPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	PlayerInputComponent->BindAxis("Zoom", this, &ACPlayer::OnZoom);
 
 	PlayerInputComponent->BindAction("Avoid", EInputEvent::IE_Pressed, this, &ACPlayer::OnAvoid);
+
+	PlayerInputComponent->BindAction("Walk", EInputEvent::IE_Pressed, this, &ACPlayer::OnWalk);
+	PlayerInputComponent->BindAction("Walk", EInputEvent::IE_Released, this, &ACPlayer::OffWalk);
+
 	
 	PlayerInputComponent->BindAction("Fist", EInputEvent::IE_Pressed, this, &ACPlayer::OnFist);
 	PlayerInputComponent->BindAction("OneHand", EInputEvent::IE_Pressed, this, &ACPlayer::OnOneHand);
@@ -176,12 +185,16 @@ void ACPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	PlayerInputComponent->BindAction("Throw", EInputEvent::IE_Pressed, this, &ACPlayer::OnThrow);
 	PlayerInputComponent->BindAction("Action", EInputEvent::IE_Pressed, this, &ACPlayer::OnDoAction);
+	PlayerInputComponent->BindAction("Action", EInputEvent::IE_Released, this, &ACPlayer::OnDoActionRelease);
+
 	PlayerInputComponent->BindAction("Targeting", EInputEvent::IE_Pressed, this, &ACPlayer::OnTarget);
 	PlayerInputComponent->BindAction("TargetLeft", EInputEvent::IE_Pressed, this, &ACPlayer::OnTargetLeft);
 	PlayerInputComponent->BindAction("TargetRight", EInputEvent::IE_Pressed, this, &ACPlayer::OnTargetRight);
 
 	PlayerInputComponent->BindAction("Interact", EInputEvent::IE_Pressed, this, &ACPlayer::Interact);
 	PlayerInputComponent->BindAction("Inventory", EInputEvent::IE_Pressed, this, &ACPlayer::OpenInventory);
+	PlayerInputComponent->BindAction("MagicInventory", EInputEvent::IE_Pressed, this, &ACPlayer::OpenMagicInventory);
+
 	PlayerInputComponent->BindAction("UseTool", EInputEvent::IE_Pressed, this, &ACPlayer::OnTool);
 
 	PlayerInputComponent->BindAction("QuickSlot", EInputEvent::IE_Pressed, this, &ACPlayer::OnViewActionList);
@@ -249,19 +262,18 @@ void ACPlayer::OnStateTypeChanged(EStateType InPrevType, EStateType InNewType)
 		case EStateType::Roll:  Begin_Roll(); break;
 		case EStateType::Backstep: Begin_Backstep(); break;
 	}
-	
+	if (InNewType == EStateType::Idle)
+	{
+		Inventory->SetCanChange(true);
+	}
+	else
+	{
+		Inventory->SetCanChange(false);
+	}
 }
 
-void ACPlayer::SetNewItem(const FItemData NewItem)
-{
-	CLog::Log(NewItem.ItemName.ToString());
 
-}
 
-void ACPlayer::SetNewMainWeapon(UCActionData* NewItemAction, EActionType NewItemActionType)
-{
-	Action->SetNewMainWeapon(NewItemAction, NewItemActionType);
-}
 
 
 void ACPlayer::EquipSecond(EActionType InActionType)
@@ -325,17 +337,7 @@ void ACPlayer::SetNewStatus(const FStatusData NewStatus)
 
 void ACPlayer::ResfreshStatus(const FStatusData NewStatus)
 {
-	GetCharacterMovement()->MaxWalkSpeed = NewStatus.WalkSpeed;
-}
-
-void ACPlayer::SetOnShield(const bool OnShield)
-{
-	Action->SetOnShield(OnShield);
-}
-
-void ACPlayer::SetNewArmor(TSubclassOf<class ACArmor> NewArmor)
-{
-	Equipment->SetNewArmor(NewArmor);
+	//GetCharacterMovement()->MaxWalkSpeed = NewStatus.Speed[(int32)ECharacterSpeed::Run];
 }
 
 //Interacting
@@ -344,10 +346,6 @@ void ACPlayer::Interact()
 	Interaction->Interact();
 }
 
-void ACPlayer::PickUp(class ACItem* InItem)
-{
-	Inventory->PickUp(InItem);
-}
 
 void ACPlayer::OnDefaultMode()
 {
@@ -387,20 +385,23 @@ void ACPlayer::BPAddStatus(FStatusData InStatusData)
 	SetNewStatus(InStatusData);
 }
 
-void ACPlayer::SetNewTool(UCActionData* NewConsumableAction, bool IsConsumable)
+void ACPlayer::PickupMagic(ACItem* InItem)
 {
-	Action->SetNewTool(NewConsumableAction, IsConsumable);
-	OnTool();
+	Inventory->PickupMagic(InItem);
 }
 
-void ACPlayer::EndToolAction()
-{
-	Inventory->EndToolAction();
-}
+
+
+
 
 void ACPlayer::OpenInventory()
 {
 	Inventory->OpenInventory();
+}
+
+void ACPlayer::OpenMagicInventory()
+{
+	Inventory->OpenMagicInventory();
 }
 
 void ACPlayer::Begin_Roll()
@@ -501,6 +502,17 @@ void ACPlayer::OnActionTypeChanged(EActionType InPrevType, EActionType InNewType
 	{
 		StatusWidget->SetVisibility(ESlateVisibility::Visible);
 	}
+}
+
+void ACPlayer::OnWalk()
+{
+	Status->SetSpeed(ECharacterSpeed::Walk);
+}
+
+void ACPlayer::OffWalk()
+{
+	Status->SetSpeed(ECharacterSpeed::Run);
+
 }
 
 void ACPlayer::OnMainWeapon()

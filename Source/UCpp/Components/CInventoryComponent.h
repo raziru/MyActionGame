@@ -14,9 +14,21 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSetNewItem, FItemData, NewItem);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSetNewMainWeapon, UCActionData*, NewItemAction, EActionType, NewItemActionType);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FSetNewTool, UCActionData*, NewItemAction, bool, IsConsumable);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSetNewTool, UCActionData*, NewItemAction);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSetNewConsumable, UCActionData*, NewItemAction);
+
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSetNewArmor, TSubclassOf<ACArmor>, armor);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDropMainWeapon, UCActionData*, NewItemAction, EActionType, NewItemActionType);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDropTool, UCActionData*, NewItemAction);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDropConsumable, UCActionData*, NewItemAction);
+
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDropArmor, TSubclassOf<ACArmor>, armor);
 
 //DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSetNewItem, FItemData, NewItem);
 //DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSetNewItem, FItemData, NewItem);
@@ -42,23 +54,14 @@ protected:
 		TSubclassOf<UUserWidget>InventoryWidgetClass;
 
 	UPROPERTY(EditAnywhere, Category = "Widget")
-		TSubclassOf<UUserWidget> MainInventoryWidgetClass;
+		TSubclassOf<UUserWidget>MagicInventoryWidgetClass;
 
-	UPROPERTY(EditAnywhere, Category = "Widget")
-		TSubclassOf<UUserWidget> WeaponInventoryWidgetClass;
-
-	UPROPERTY(EditAnywhere, Category = "Widget")
-		TSubclassOf<UUserWidget> ArmorInventoryWidgetClass;
-
-	UPROPERTY(EditAnywhere, Category = "Widget")
-		TSubclassOf<UUserWidget> ToolInventoryWidgetClass;
-
-	UPROPERTY(EditAnywhere, Category = "Widget")
-		TSubclassOf<UUserWidget> ConsumableInventoryWidgetClass;
 
 	UPROPERTY()
 		class UCUserWidget_Inventory* InventoryWidget;
 	
+	UPROPERTY()
+		class UCUserWidget_Inventory* MagicInventoryWidget;
 
 public:	
 	// Sets default values for this component's properties
@@ -66,10 +69,22 @@ public:
 	void OpenInventory();
 	void OpenInventory(EInventoryType NewInventoryType);
 
-	void PickUp(ACItem* InItem);
 
-	void EndToolAction();
+	void Pickup(ACItem* InItem);
+
+	void OpenMagicInventory();
+	void OpenMagicInventory(EInventoryType NewInventoryType);
+
+	void PickupMagic(ACItem* InItem);
+	UFUNCTION()
+		void EndToolAction();
+
+	UFUNCTION()
+		void EndConsumableAction();
+
 	void DecreaseCount(FItemData NewItem);
+
+	FORCEINLINE void SetCanChange(bool NewCanChange) { CanChange = NewCanChange; }
 private:
 	UFUNCTION()
 		void OnClicked(FItemData NewItem);
@@ -87,15 +102,23 @@ protected:
 private:
 	TArray<FItemData> Inventory;
 
+	TArray<FItemData> MagicInventory;
+
+
 	bool IsInventoryOpened;
 
+	bool IsMagicInventoryOpened;
+
 	bool IsConsumable;
+
+	bool CanChange;
 	
 	FItemData ChangedItem;
 
 	EItemType SelectedItemType;
 
 	EInventoryType InventoryType;
+
 public:
 	UPROPERTY(BlueprintAssignable)
 		FSetNewItem SetNewItem;
@@ -108,4 +131,19 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 		FSetNewTool SetNewTool;
+
+	UPROPERTY(BlueprintAssignable)
+		FSetNewConsumable SetNewConsumable;
+
+	UPROPERTY(BlueprintAssignable)
+		FDropMainWeapon DropMainWeapon;
+
+	UPROPERTY(BlueprintAssignable)
+		FDropArmor DropArmor;
+
+	UPROPERTY(BlueprintAssignable)
+		FDropTool DropTool;
+
+	UPROPERTY(BlueprintAssignable)
+		FDropConsumable DropConsumable;
 };

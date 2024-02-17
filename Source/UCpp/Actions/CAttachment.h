@@ -10,6 +10,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FAttachmentBeginOverlap, class AC
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FAttachmentEndOverlap, class ACharacter*, InAttacker, class AActor*, InAttackCauser, class ACharacter*, InOtherCharacter);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FAttachmentCollision);
 
+UENUM(BlueprintType)
+enum class EAttachment : uint8
+{
+	MainHand, SecondHand, Projectile, Max,
+};
+
+
 UCLASS()
 class UCPP_API ACAttachment : public AActor
 {
@@ -19,10 +26,15 @@ protected:
 		class USceneComponent* Scene;
 protected:
 	UFUNCTION(BlueprintCallable)//Can use in blueprint
-		void AttachTo(FName InSocketName);
+		virtual void AttachTo(FName InSocketName);
 
 	UFUNCTION(BlueprintCallable)//Can use in blueprint
 		void AttachToCollision(class UShapeComponent* InComponent, FName InSocketName);
+
+public:
+	FORCEINLINE bool GetIsPress() { return IsPress; }
+
+	FORCEINLINE bool GetIsRightPress() { return IsRightPress; }
 public:	
 	ACAttachment();
 
@@ -43,6 +55,9 @@ private:
 
 	UFUNCTION()
 		void OnComponentEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	UFUNCTION()
+		void OnPress(bool InPressAction, bool InPressSecondAction);
 
 public:
 	UPROPERTY(BlueprintAssignable)
@@ -66,6 +81,12 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 		class UCStatusComponent* Status;
 
+	UPROPERTY(BlueprintReadOnly)
+		class UCActionComponent* Action;
+
 private:
 	TArray<class UShapeComponent*> ShapeComponents;//충돌체 형태를 자유롭게 쓰기위함
+
+	bool IsPress; 
+	bool IsRightPress;
 };

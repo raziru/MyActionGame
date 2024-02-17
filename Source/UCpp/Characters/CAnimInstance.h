@@ -36,7 +36,13 @@ protected:
         bool OnShield;
 
     UPROPERTY(BlueprintReadOnly, EditAnywhere)
+        bool SecondHand;
+
+    UPROPERTY(BlueprintReadOnly, EditAnywhere)
         FFeetData FeetData;
+
+    UPROPERTY(BlueprintReadOnly, EditAnywhere)
+        float Pitch;
 public:
     virtual void NativeBeginPlay() override;
     virtual void NativeUpdateAnimation(float DeltaSeconds) override;
@@ -46,5 +52,8 @@ private:
         void OnActionTypeChanged(EActionType InPrevType, EActionType InNewType);
 
     UFUNCTION()
-        void OnActionPress(bool InPressAction, bool InPressSecondAction, bool InOnShield);
+        void OnActionPress(bool InPressAction, bool InPressSecondAction);
+
+    UFUNCTION()
+        void OnSecondHand(bool InSecondHand);
 };

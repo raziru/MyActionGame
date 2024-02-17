@@ -28,18 +28,25 @@ void UCEquipComponent::SetNewArmor(TSubclassOf<class ACArmor> NewArmorClass)
 
 	FTransform transform;
 
-	//NewArmor = Cast<ACArmor>(OwnerCharacter->GetWorld()->SpawnActor(NewArmorClass));
-
 	NewArmor= OwnerCharacter->GetWorld()->SpawnActorDeferred<ACArmor>(NewArmorClass, transform, OwnerCharacter);
 	UGameplayStatics::FinishSpawningActor(NewArmor, transform);
 
 	CheckNull(NewArmor);
 
+	//NewArmor->GetArmorType();
+	
 	for (TPair<EArmorType, ACArmor*> Armor : Armors)
 	{
 		if (Armor.Value->GetClass() == NewArmorClass)
 		{
-			Armor.Value->UnEquip();
+			Armor.Value->Detach();
+			if (Armor.Value->GetArmorType() == EArmorType::Shield)
+			{
+				if (OffShield.IsBound())
+				{
+					OffShield.Broadcast(Armor.Value);
+				}
+			}
 			Armors.Remove(NewArmor->GetArmorType());
 			NewArmor->Destroy();
 			SetStatus();
@@ -47,15 +54,29 @@ void UCEquipComponent::SetNewArmor(TSubclassOf<class ACArmor> NewArmorClass)
 		}
 		else if (NewArmor->GetArmorType() == Armor.Key)
 		{
-			Armor.Value->UnEquip();
+			Armor.Value->Detach();
+			if (Armor.Value->GetArmorType() == EArmorType::Shield)
+			{
+				if (OffShield.IsBound())
+				{
+					OffShield.Broadcast(Armor.Value);
+				}
+			}
 			Armors.Add(NewArmor->GetArmorType(), NewArmor);
-			NewArmor->Equip();
+			NewArmor->Attach();
 			SetStatus();
 			return;
 		}
 	}
 	Armors.Add(NewArmor->GetArmorType(), NewArmor);
-	NewArmor->Equip();
+	if (NewArmor->GetArmorType() == EArmorType::Shield)
+	{
+		if (OnShield.IsBound())
+		{
+			OnShield.Broadcast(NewArmor);
+		}
+	}
+	NewArmor->Attach();
 	SetStatus();
 	
 }
@@ -79,21 +100,6 @@ void UCEquipComponent::SetStatus()
 		SetNewStatus.Broadcast(EquipStatus);
 	}
 
-
-	if (!Armors.Find(EArmorType::Shield) || !!!Armors[EArmorType::Shield])
-	{
-		if (OnShield.IsBound())
-		{
-			OnShield.Broadcast(false);
-		}
-	}
-	else
-	{
-		if (OnShield.IsBound())
-		{
-			OnShield.Broadcast(true);
-		}
-	}
 }
 
 void UCEquipComponent::OnSecondEquip(EArmorType InArmorType)
@@ -103,7 +109,7 @@ void UCEquipComponent::OnSecondEquip(EArmorType InArmorType)
 	case EArmorType::Shield:
 		if (!(!Armors.Find(EArmorType::Shield) || !!!Armors[EArmorType::Shield]))
 		{
-			Armors[EArmorType::Shield]->AttachTo("Socket_Shield");
+			Armors[EArmorType::Shield]->MoveTo("Socket_Shield");
 		}
 		break;
 	}
@@ -117,7 +123,7 @@ void UCEquipComponent::OnSecondUnEquip(EArmorType InArmorType)
 	case EArmorType::Shield:
 		if (!(!Armors.Find(EArmorType::Shield) || !!!Armors[EArmorType::Shield]))
 		{
-			Armors[EArmorType::Shield]->AttachTo("Holster_Shield");
+			Armors[EArmorType::Shield]->MoveTo("Holster_Shield");
 		}
 		break;
 	}

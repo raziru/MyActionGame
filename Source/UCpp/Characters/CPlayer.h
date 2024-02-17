@@ -76,6 +76,8 @@ private:
 	UPROPERTY(VisibleDefaultsOnly)
 		class UCEquipComponent* Equipment;
 
+	UPROPERTY(VisibleDefaultsOnly)
+		class UCDialogueComponent* Dialogue;
 public:
 	FORCEINLINE class UCUserWidget_ActionList* GetActionList() { return Action->GetActionList(); }
 
@@ -98,8 +100,6 @@ public:
 
 	virtual void Interact() override;
 
-	virtual void PickUp(class ACItem* InItem) override;
-
 	virtual void OnDefaultMode() override;
 
 	UFUNCTION(BlueprintCallable)
@@ -117,6 +117,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void BPAddStatus(FStatusData InStatusData);
 
+	UFUNCTION(BlueprintCallable)
+		void PickupMagic(class ACItem* InItem);
+
 //Moving
 private:
 	void OnMoveForward(float InAxis);
@@ -132,10 +135,7 @@ private:
 //Weapon Equip
 	UFUNCTION()
 		void OnStateTypeChanged(EStateType InPrevType, EStateType InNewType);
-	UFUNCTION()
-		void SetNewItem(const FItemData NewItem);
-	UFUNCTION()
-		void SetNewMainWeapon(class UCActionData* NewItemAction, EActionType NewItemActionType);
+
 	UFUNCTION()
 		void EquipSecond(EActionType InActionType);
 
@@ -143,8 +143,6 @@ private:
 		void UnequipSecond(EActionType InActionType);
 
 //Armor Equip
-	UFUNCTION()
-		void SetNewArmor(TSubclassOf<class ACArmor> NewArmor);
 
 	UFUNCTION()
 		void SetNewStatus(const FStatusData NewStatus);
@@ -152,16 +150,10 @@ private:
 	UFUNCTION()
 		void ResfreshStatus(const FStatusData NewStatus);
 
-	UFUNCTION()
-		void SetOnShield(const bool OnShield);
-//Use Consumalbe
-	UFUNCTION()
-		void SetNewTool(class UCActionData* NewConsumableAction, bool IsConsumable);
-
-	UFUNCTION()
-		void EndToolAction();
 private:
 	void OpenInventory();
+
+	void OpenMagicInventory();
 
 private:
 	void Begin_Roll();
@@ -169,7 +161,7 @@ private:
 
 public:
 	void End_Roll();
-	void End_Backstep();
+	virtual void End_Backstep();
 private:
 	UFUNCTION()
 		void OnUnarmed();
@@ -188,6 +180,9 @@ private:
 	UFUNCTION()
 		void OnActionTypeChanged(EActionType InPrevType, EActionType InNewType);
 
+	void OnWalk();
+	void OffWalk();
+
 	
 	void OnMainWeapon();
 
@@ -196,7 +191,6 @@ private:
 
 	void OnDoSecondAction();
 	void OnDoSecondActionRelease();
-
 
 	void OnTarget();
 	void OnTargetLeft();

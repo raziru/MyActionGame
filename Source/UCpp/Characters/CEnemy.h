@@ -27,16 +27,21 @@ protected:
 protected:
 	UPROPERTY(BlueprintReadOnly, VisibleDefaultsOnly)
 		class UCActionComponent* Action;
-
-private:
+	
 	UPROPERTY(VisibleDefaultsOnly)
 		class UCMontagesComponent* Montages;
+
+private:
+	
 
 	UPROPERTY(VisibleDefaultsOnly)
 		class UCStatusComponent* Status;
 
 	UPROPERTY(VisibleDefaultsOnly)
 		class UCStateComponent* State;
+
+	UPROPERTY(VisibleDefaultsOnly)
+		class UCDialogueComponent* Dialogue;
 public:
 	ACEnemy();
 
@@ -49,7 +54,6 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	virtual void ChangeColor(FLinearColor InColor);
-
 
 	virtual void Interact(AActor* InOther) override;
 
@@ -65,13 +69,18 @@ private:
 
 	UFUNCTION()
 		void OnUnarmed();
-private:
+protected:
 	void Hitted();
 	void Dead();
 
 private:
 	virtual void Begin_Dead() override;
 	virtual void End_Dead()   override;
+
+	void Begin_Backstep();
+	virtual void End_Backstep();
+
+
 
 private:
 	class UMaterialInstanceDynamic* BodyMaterial;

@@ -11,6 +11,7 @@
 #include "Components/CActionComponent.h"
 #include "Components/CStatusComponent.h"
 #include "Components/CMontagesComponent.h"
+#include "Components/CDialogueComponent.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/WidgetComponent.h"
@@ -31,14 +32,16 @@ ACEnemy::ACEnemy()
 	CHelpers::CreateActorComponent<UCMontagesComponent>(this, &Montages, "Montages");
 	CHelpers::CreateActorComponent<UCStatusComponent>(this, &Status, "Status");
 	CHelpers::CreateActorComponent<UCStateComponent>(this, &State, "State");
+	CHelpers::CreateActorComponent<UCDialogueComponent>(this, &Dialogue, "Dialogue");
+
 
 	GetMesh()->SetRelativeLocation(FVector(0, 0, -90));
 	GetMesh()->SetRelativeRotation(FRotator(0, -90, 0));
-
+	
 	USkeletalMesh* mesh;
 	CHelpers::GetAsset<USkeletalMesh>(&mesh, "SkeletalMesh'/Game/Character/Mesh/SK_Mannequin.SK_Mannequin'");
 	GetMesh()->SetSkeletalMesh(mesh);
-
+	
 	GetCharacterMovement()->RotationRate = FRotator(0, 720, 0);
 
 	TSubclassOf<UCUserWidget_Name> nameClass;
@@ -106,7 +109,11 @@ void ACEnemy::ChangeColor(FLinearColor InColor)
 void ACEnemy::Interact(AActor* InOther)
 {
 	CLog::Print(InOther->GetName());
-	Destroy();
+	//Dialogue->ShowDialogue();
+	//CHelpers::GetComponent(&Dialogue);
+	Dialogue->SpeakTo(InOther);
+	
+	//Destroy();
 }
 
 void ACEnemy::OnDefaultMode()
@@ -131,6 +138,7 @@ void ACEnemy::OnStateTypeChanged(EStateType InPrevType, EStateType InNewType)
 	switch (InNewType)
 	{
 	case EStateType::Hitted: Hitted(); break;
+	case EStateType::Backstep: Begin_Backstep(); break;
 	case EStateType::Dead: Dead(); break;
 	}
 }
@@ -156,7 +164,6 @@ void ACEnemy::Hitted()
 
 	Status->SetStop();
 
-	Montages->PlayHitted();
 
 	FVector start = GetActorLocation();
 	FVector target = DamageInstigator->GetPawn()->GetActorLocation();
@@ -170,6 +177,7 @@ void ACEnemy::Hitted()
 	ChangeColor(FLinearColor(1, 0, 0, 1));
 
 	UKismetSystemLibrary::K2_SetTimer(this, "RestoreColor", 0.1f, false);//delay
+	Montages->PlayHitted();
 }
 
 void ACEnemy::Dead()
@@ -178,6 +186,17 @@ void ACEnemy::Dead()
 
 	Montages->PlayDead();
 }
+void ACEnemy::Begin_Backstep()
+{
+	//CheckFalse(State->IsIdleMode());
+	Montages->PlayBackstep();
+
+}
+
+void ACEnemy::End_Backstep()
+{
+	State->SetIdleMode();
+}
 void ACEnemy::Begin_Dead()
 {
 	Action->OffAllCollision();
@@ -185,6 +204,7 @@ void ACEnemy::Begin_Dead()
 }
 void ACEnemy::End_Dead()
 {
+	Action->DestoryAction();
 	Destroy();
 }
 void ACEnemy::RestoreColor()

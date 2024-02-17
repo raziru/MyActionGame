@@ -12,11 +12,40 @@ UCInventoryComponent::UCInventoryComponent()
 
 void UCInventoryComponent::OpenInventory()
 {
-	OpenInventory(InventoryType);
+	if (!IsInventoryOpened)
+	{
+		if (IsMagicInventoryOpened)
+		{
+			OpenMagicInventory(EInventoryType::Weapon);
+		}
+		OpenInventory(InventoryType);
+	}
+	else
+	{
+		OpenInventory(InventoryType);
+	}
 }
 
+void UCInventoryComponent::OpenMagicInventory()
+{
+	if (!IsMagicInventoryOpened)
+	{
+		if (IsInventoryOpened)
+		{
+			OpenInventory(InventoryType);
+		}
+		OpenMagicInventory(EInventoryType::Weapon);
+
+	}
+	else
+	{
+		OpenMagicInventory(EInventoryType::Weapon);
+
+	}
+}
 void UCInventoryComponent::OnClicked(FItemData NewItem)
 {
+	CheckFalse(CanChange);
 	ACItem_Weapon* WeaponItem;
 	ACItem_Armor* ArmorItem;
 	ACItem_Consumable* Consumable;
@@ -39,8 +68,6 @@ void UCInventoryComponent::OnClicked(FItemData NewItem)
 	case EItemType::Armor:
 		CLog::Print("Check");
 		ArmorItem = Cast<ACItem_Armor>(GetOwner()->GetWorld()->SpawnActor(NewItem.ItemClass));
-
-		
 		CheckNull(ArmorItem);
 		CLog::Print("Armor Success");
 		if (SetNewArmor.IsBound())
@@ -51,21 +78,26 @@ void UCInventoryComponent::OnClicked(FItemData NewItem)
 		break;
 	case EItemType::Consumable:
 		CLog::Print("Check");
-
 		FTransform transform;
-
 		Consumable = GetOwner()->GetWorld()->SpawnActorDeferred<ACItem_Consumable>(NewItem.ItemClass, transform, GetOwner());
 		UGameplayStatics::FinishSpawningActor(Consumable, transform);
 		CheckNull(Consumable);
 		CLog::Print("Consumable Success");
 		Consumable->ConsumableEvent();
-		if (SetNewTool.IsBound())
-		{
-			SetNewTool.Broadcast(Consumable->GetData(), true);
-		}
-		
 		IsConsumable = true;
 		ChangedItem = NewItem;
+		if (!!Consumable->GetData())
+		{
+			if (SetNewConsumable.IsBound())
+			{
+				SetNewConsumable.Broadcast(Consumable->GetData());
+			}
+		}	
+		else
+		{
+			DecreaseCount(ChangedItem);
+		}
+		
 		Consumable->Destroy();
 		break;
 	}
@@ -81,12 +113,42 @@ void UCInventoryComponent::OnRightClicked(FItemData NewItem)
 	FTransform transform;
 	FVector Vector = { (float)(rand() % 10 + 5), (float)(rand() % 10 + 5), 0.0f };
 	transform.SetLocation(GetOwner()->GetActorLocation() + Vector);
-
 	ACItem* item = GetOwner()->GetWorld()->SpawnActorDeferred<ACItem>(NewItem.ItemClass, transform);
+	ACItem_Weapon* WeaponItem;
+	ACItem_Armor* ArmorItem;
+	ACItem_Consumable* Consumable;
+	switch (NewItem.ItemType)
+	{
+	case EItemType::Weapon:
+		WeaponItem = Cast<ACItem_Weapon>(item);
+		if (DropMainWeapon.IsBound())
+		{
+			DropMainWeapon.Broadcast(WeaponItem->GetData(),WeaponItem->GetType());
+		}
+		break;
+	case EItemType::Armor:
+		ArmorItem = Cast<ACItem_Armor>(item);
+		if (DropArmor.IsBound())
+		{
+			DropArmor.Broadcast(ArmorItem->GetClass());
+		}
+		break;
+	case EItemType::Tool:
+		break;
+	case EItemType::Consumable:
+		Consumable = Cast<ACItem_Consumable>(item);
+		if (DropConsumable.IsBound())
+		{
+			DropConsumable.Broadcast(Consumable->GetData());
+		}
+		break;
+	case EItemType::Max:
+		break;
+	default:
+		break;
+	}
+
 	UGameplayStatics::FinishSpawningActor(item, transform);
-
-	//GetOwner()->GetWorld()->SpawnActor(NewItem.ItemClass,transform.GetRotation(),transform.GetLocation(),GetOwner());
-
 }
 
 void UCInventoryComponent::NextInventory()
@@ -101,7 +163,6 @@ void UCInventoryComponent::NextInventory()
 		break;
 	case EInventoryType::Armor:
 		InventoryType = EInventoryType::Tool;
-
 		break;
 	case EInventoryType::Tool:
 		InventoryType = EInventoryType::Consumable;
@@ -130,7 +191,6 @@ void UCInventoryComponent::PrevInventory()
 		break;
 	case EInventoryType::Armor:
 		InventoryType = EInventoryType::Weapon;
-
 		break;
 	case EInventoryType::Tool:
 		InventoryType = EInventoryType::Armor;
@@ -192,6 +252,7 @@ void UCInventoryComponent::OpenInventory(EInventoryType NewInventoryType)
 		InventoryWidget->PrevInventory.AddDynamic(this, &UCInventoryComponent::PrevInventory);
 
 		//OnSelected.AddDynamic
+
 	}
 	else
 	{
@@ -204,7 +265,60 @@ void UCInventoryComponent::OpenInventory(EInventoryType NewInventoryType)
 	IsInventoryOpened = !IsInventoryOpened;
 }
 
-void UCInventoryComponent::PickUp(ACItem* InItem)
+
+
+
+void UCInventoryComponent::OpenMagicInventory(EInventoryType NewInventoryType)
+{
+	//AllinOne Inventory
+	for (FItemData Item : MagicInventory)
+	{
+		Item.ShowData();
+	}
+
+
+	if (!IsMagicInventoryOpened)
+	{
+		CheckNull(MagicInventoryWidgetClass);
+		if (!!!MagicInventoryWidget)
+		{
+			MagicInventoryWidget = Cast<UCUserWidget_Inventory>(CreateWidget(GetWorld(), MagicInventoryWidgetClass));
+			CheckNull(MagicInventoryWidget);
+			MagicInventoryWidget->SetInventoryType( NewInventoryType);
+			MagicInventoryWidget->BuildInventory(MagicInventory, MaxInventorySize, ColumnSize);
+			MagicInventoryWidget->AddToViewport();
+		}
+		else
+		{
+			MagicInventoryWidget->SetInventoryType(NewInventoryType);
+			MagicInventoryWidget->ClearInventory();
+			MagicInventoryWidget->BuildInventory(MagicInventory, MaxInventorySize, ColumnSize);
+			MagicInventoryWidget->AddToViewport();
+		}
+		//CLog::Print(Inventory.Num());
+
+		CheckNull(MagicInventoryWidget);
+
+		MagicInventoryWidget->ItemClicked.AddDynamic(this, &UCInventoryComponent::OnClicked);
+		//MagicInventoryWidget->ItemRightClicked.AddDynamic(this, &UCInventoryComponent::OnRightClicked);
+		//MagicInventoryWidget->NextInventory.AddDynamic(this, &UCInventoryComponent::NextInventory);
+		//MagicInventoryWidget->PrevInventory.AddDynamic(this, &UCInventoryComponent::PrevInventory);
+
+		//OnSelected.AddDynamic
+
+		
+	}
+	else
+	{
+		CheckNull(MagicInventoryWidget);
+		MagicInventoryWidget->ClearInventory();
+		MagicInventoryWidget->RemoveFromParent();
+		MagicInventoryWidget->ItemClicked.Clear();
+		MagicInventoryWidget->ItemRightClicked.Clear();
+	}
+	IsMagicInventoryOpened = !IsMagicInventoryOpened;
+}
+void UCInventoryComponent::Pickup(ACItem* InItem)
 {
 	InItem->ShowData();
 	
@@ -250,6 +364,38 @@ void UCInventoryComponent::PickUp(ACItem* InItem)
 
 }
 
+void UCInventoryComponent::PickupMagic(ACItem* InItem)
+{
+	InItem->ShowData();
+
+	FItemData CopyItem;
+	CopyItem = InItem->GetItemData();
+	bool IsExist = false;
+	int index = 0;
+	for (FItemData data : MagicInventory)
+	{
+		if (data.ItemName == CopyItem.ItemName)
+		{
+			CLog::Log("Same Item");
+
+			return;
+		}
+		index++;
+	}
+
+	if (!IsExist)
+	{
+		CopyItem.ItemIndex = MagicInventory.Num();
+		MagicInventory.Add(CopyItem);
+	}
+	if (IsMagicInventoryOpened)
+	{
+		CheckNull(InventoryWidget);
+		InventoryWidget->RefreshInventory(MagicInventory, MaxInventorySize, ColumnSize);
+	}
+
+}
+
 void UCInventoryComponent::EndToolAction()
 {
 	switch (SelectedItemType)
@@ -261,7 +407,6 @@ void UCInventoryComponent::EndToolAction()
 	case EItemType::Tool:
 		break;
 	case EItemType::Consumable:
-		DecreaseCount(ChangedItem);
 
 		break;
 	case EItemType::Max:
@@ -272,25 +417,33 @@ void UCInventoryComponent::EndToolAction()
 	
 }
 
+void UCInventoryComponent::EndConsumableAction()
+{
+	DecreaseCount(ChangedItem);
+}
+
 void UCInventoryComponent::DecreaseCount(FItemData NewItem)
 {
+
 	for (int i = 0; i < Inventory.Num(); i++)
 	{
 		if (Inventory[i].ItemClass == NewItem.ItemClass)
 		{
+			
 			Inventory[i].CurrentStack--;
 			if (Inventory[i].CurrentStack == 0)
 			{
+				
 				Inventory.RemoveAt(i);//Remove보다 at으로 인덱스로 접근하는 것이 에러가 발생하지않는다.
 				//Inventory.Remove(Inventory[i])//포인터를 없애기 때문에 
 				//RemoveAt indeed would solve this problem (in fact it much faster), also not using pointer is good solution, you could use varable that you copied which would naturally have diffrent memoery address then array.
 			}
-
 			if (IsInventoryOpened)
 			{
 				CheckNull(InventoryWidget);
 				InventoryWidget->RefreshInventory(Inventory, MaxInventorySize, ColumnSize);
 			}
+			break;
 		}
 	}
 }

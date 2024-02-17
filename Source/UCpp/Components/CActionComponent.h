@@ -14,10 +14,13 @@ enum class EActionType : uint8
 
 //delegate는 무조건 public으로 열어줘야 다른쪽에서 사용할 수 있다.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FActionTypeChanged, EActionType, InPrevType, EActionType, InNewType);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnActionPress, bool, InPressAction, bool, InPressSecondAction, bool, InOnShield);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnActionPress, bool, InPressAction, bool, InPressSecondAction);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSecondHand, bool, InOnSecondtHand);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FEquipSecond, EActionType, InActionType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUnequipSecond, EActionType, InActionType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FEndToolAction);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FEndConsumableAction);
+
 
 //Multicast: 함수를 여러개 바인딩해놓을 수 있음 바인딩할 함수는 UFUNCTION이어야 한다.
 UCLASS( ClassGroup=(GameProject), meta=(BlueprintSpawnableComponent) )
@@ -26,10 +29,11 @@ class UCPP_API UCActionComponent : public UActorComponent
 	GENERATED_BODY()
 private:
 	UPROPERTY(EditDefaultsOnly, Category = "Weapons")
-		class UCActionData* Datas[(int32)EActionType::Max];
+		class UCActionData* DataAssets[(int32)EActionType::Max];
 private:
 	UPROPERTY(EditDefaultsOnly)
 		TSubclassOf<class UCUserWidget_ActionList> ActionListClass;
+
 	UPROPERTY(EditDefaultsOnly)
 		class UCActionData* UnarmedData;
 private:
@@ -51,7 +55,7 @@ private:
 
 public:
 	UFUNCTION(BlueprintPure)
-		FORCEINLINE class UCActionData* GetCurrent() { return Datas[(int32)Type]; }
+		FORCEINLINE class UCAction* GetCurrent() { return Datas[(int32)Type]; }
 
 public:
 	UFUNCTION()
@@ -80,6 +84,8 @@ public:
 
 	UFUNCTION(BlueprintPure)
 		FORCEINLINE bool IsToolMode() { return Type == EActionType::Tool; }
+	UFUNCTION(BlueprintPure)
+		FORCEINLINE bool IsBowMode() { return Type == EActionType::Bow; }
 
 
 public:	
@@ -100,19 +106,35 @@ public:
 	void SetSecondWeaponMode();
 	void SetToolMode();
 
-
 	void OffAllCollision();
-	
-	void SetNewMainWeapon(class UCActionData* NewItemAction, EActionType NewItemActionType);
-
-	void SetNewSecondWeapon(class UCActionData* NewItemAction, EActionType NewItemActionType);
-
-	void SetNewTool(class UCActionData* NewToolAction, bool IsConsumable);
-
+	void DestoryAction();
 
 	UFUNCTION()
-		void SetOnShield(bool OnNewShield) { OnShield = OnNewShield; }
+		void SetNewMainWeapon(class UCActionData* NewItemAction, EActionType NewItemActionType);
 
+	UFUNCTION()
+		void SetNewSecondWeapon(class UCActionData* NewItemAction, EActionType NewItemActionType);
+
+	UFUNCTION()
+		void SetNewTool(class UCActionData* NewToolAction);
+
+	UFUNCTION()
+		void SetNewConsumable(class UCActionData* NewToolAction);
+
+	UFUNCTION()
+		void DropWeapon(class UCActionData* NewItemAction, EActionType NewItemActionType);
+
+	UFUNCTION()
+		void DropSecondWeapon(class UCActionData* NewItemAction, EActionType NewItemActionType);
+
+	UFUNCTION()
+		void DropTool(class UCActionData* NewToolAction);
+	
+	UFUNCTION()
+		void OnAdditionalAttachment(class ACAttachment* NewAttachment);
+
+	UFUNCTION()
+		void OffAdditionalAttachment(class ACAttachment* NewAttachment);
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -148,15 +170,23 @@ private:
 
 	UFUNCTION()
 		void EndTool();
+
+	UFUNCTION()
+		void EndConsumable();
 private:
 	void SetMode(EActionType InType);
 	void ChangeType(EActionType InNewType);
-	void ActionBeginPlay(class UCActionData* NewAction);
+	void ActionBeginPlay(class UCActionData* NewAction, EActionType NewActionType);
 public:
 	UPROPERTY(BlueprintAssignable)
 		FActionTypeChanged OnActionTypeChanged;
+	
 	UPROPERTY(BlueprintAssignable)
 		FOnActionPress OnActionPress;
+
+	UPROPERTY(BlueprintAssignable)
+		FOnSecondHand OnSecondHand;
+
 	UPROPERTY(BlueprintAssignable)
 		FEquipSecond EquipSecond;
 
@@ -165,6 +195,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 		FEndToolAction EndToolAction;
+
+	UPROPERTY(BlueprintAssignable)
+		FEndConsumableAction EndConsumableAction;
 
 private:
 	EActionType Type;
@@ -179,8 +212,11 @@ private:
 	bool OnShield = false;
 	bool OnGuard  = false;
 
+
 	bool IsConsumableTool = false;
 
 private:
 	class UCUserWidget_ActionList* ActionList;
+	class UCAction* Datas[(int32)EActionType::Max];
+
 };
